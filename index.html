@@ -98,6 +98,8 @@
   .ticket .body{ flex:1; padding:14px 16px; }
   .match-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .team{ display:flex; align-items:center; gap:8px; font-family:'Oswald',sans-serif; font-size:17px; font-weight:600; flex:1;}
+  .flag-chip{ width:24px; height:18px; object-fit:cover; border-radius:3px; box-shadow:0 0 0 1px var(--line); flex-shrink:0; }
+  .flag-chip-placeholder{ display:inline-flex; align-items:center; justify-content:center; background:var(--line); color:var(--ink); font-family:'Space Mono',monospace; font-size:11px; }
   .team .flag{ font-size:20px; }
   .vs{ font-family:'Space Mono',monospace; font-size:11px; opacity:0.45; padding:0 6px;}
   .meta-line{ font-family:'Space Mono',monospace; font-size:11px; opacity:0.55; margin-top:6px; }
@@ -215,23 +217,37 @@ const ROUND_META = {
 };
 
 const DEFAULT_MATCHES = [
-  {id:'r16-1', round:'R16', teamA:'Morocco', flagA:'🇲🇦', teamB:'Canada', flagB:'🇨🇦', kickoff:'Sat Jul 4 · Houston', status:'completed', scoreA:3, scoreB:0},
-  {id:'r16-2', round:'R16', teamA:'France', flagA:'🇫🇷', teamB:'Paraguay', flagB:'🇵🇾', kickoff:'Sat Jul 4 · Philadelphia', status:'completed', scoreA:1, scoreB:0},
-  {id:'r16-3', round:'R16', teamA:'Norway', flagA:'🇳🇴', teamB:'Brazil', flagB:'🇧🇷', kickoff:'Sun Jul 5 · New York/NJ', status:'completed', scoreA:2, scoreB:1},
-  {id:'r16-4', round:'R16', teamA:'England', flagA:'🏴', teamB:'Mexico', flagB:'🇲🇽', kickoff:'Sun Jul 5 · Mexico City', status:'completed', scoreA:3, scoreB:2},
-  {id:'r16-5', round:'R16', teamA:'Portugal', flagA:'🇵🇹', teamB:'Spain', flagB:'🇪🇸', kickoff:'Mon Jul 6 · Dallas', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'r16-6', round:'R16', teamA:'USA', flagA:'🇺🇸', teamB:'Belgium', flagB:'🇧🇪', kickoff:'Mon Jul 6 · Seattle', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'r16-7', round:'R16', teamA:'Argentina', flagA:'🇦🇷', teamB:'Egypt', flagB:'🇪🇬', kickoff:'Tue Jul 7 · Atlanta', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'r16-8', round:'R16', teamA:'Switzerland', flagA:'🇨🇭', teamB:'Colombia', flagB:'🇨🇴', kickoff:'Tue Jul 7 · Kansas City', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'qf-1', round:'QF', teamA:'England', flagA:'🏴', teamB:'Norway', flagB:'🇳🇴', kickoff:'Sat Jul 11 · Miami', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'qf-2', round:'QF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'qf-3', round:'QF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'qf-4', round:'QF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'sf-1', round:'SF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'sf-2', round:'SF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'tp-1', round:'TP', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'Fri Jul 18 · Miami', status:'upcoming', scoreA:null, scoreB:null},
-  {id:'f-1', round:'F', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'Sun Jul 19 · New York/NJ', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-1', round:'R16', teamA:'Morocco', teamB:'Canada', kickoff:'Sat Jul 4 · Houston', status:'completed', scoreA:3, scoreB:0},
+  {id:'r16-2', round:'R16', teamA:'France', teamB:'Paraguay', kickoff:'Sat Jul 4 · Philadelphia', status:'completed', scoreA:1, scoreB:0},
+  {id:'r16-3', round:'R16', teamA:'Norway', teamB:'Brazil', kickoff:'Sun Jul 5 · New York/NJ', status:'completed', scoreA:2, scoreB:1},
+  {id:'r16-4', round:'R16', teamA:'England', teamB:'Mexico', kickoff:'Sun Jul 5 · Mexico City', status:'completed', scoreA:3, scoreB:2},
+  {id:'r16-5', round:'R16', teamA:'Portugal', teamB:'Spain', kickoff:'Mon Jul 6 · Dallas', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-6', round:'R16', teamA:'USA', teamB:'Belgium', kickoff:'Mon Jul 6 · Seattle', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-7', round:'R16', teamA:'Argentina', teamB:'Egypt', kickoff:'Tue Jul 7 · Atlanta', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-8', round:'R16', teamA:'Switzerland', teamB:'Colombia', kickoff:'Tue Jul 7 · Kansas City', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-1', round:'QF', teamA:'England', teamB:'Norway', kickoff:'Sat Jul 11 · Miami', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-2', round:'QF', teamA:'TBD', teamB:'TBD', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-3', round:'QF', teamA:'TBD', teamB:'TBD', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-4', round:'QF', teamA:'TBD', teamB:'TBD', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'sf-1', round:'SF', teamA:'TBD', teamB:'TBD', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'sf-2', round:'SF', teamA:'TBD', teamB:'TBD', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'tp-1', round:'TP', teamA:'TBD', teamB:'TBD', kickoff:'Fri Jul 18 · Miami', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'f-1', round:'F', teamA:'TBD', teamB:'TBD', kickoff:'Sun Jul 19 · New York/NJ', status:'upcoming', scoreA:null, scoreB:null},
 ];
+
+const FLAG_CODES = {
+  'Morocco':'ma','Canada':'ca','France':'fr','Paraguay':'py','Norway':'no','Brazil':'br',
+  'England':'gb-eng','Mexico':'mx','Portugal':'pt','Spain':'es','USA':'us','Belgium':'be',
+  'Argentina':'ar','Egypt':'eg','Switzerland':'ch','Colombia':'co'
+};
+
+function flagTag(teamName){
+  const code = FLAG_CODES[teamName];
+  if(!code){
+    return `<span class="flag-chip flag-chip-placeholder">?</span>`;
+  }
+  return `<img class="flag-chip" src="https://flagcdn.com/48x36/${code}.png" alt="${teamName} flag" width="24" height="18">`;
+}
 
 const CHAMPION_OPTIONS = ['Morocco','France','Norway','England','Portugal','Spain','USA','Belgium','Argentina','Egypt','Switzerland','Colombia'];
 
@@ -423,9 +439,9 @@ async function leavePool(){
   render();
 }
 
-async function savePrediction(matchId, scoreA, scoreB){
+async function savePrediction(matchId, scoreA, scoreB, penaltyWinner){
   const me = state.predictions[state.name];
-  me.matches[matchId] = { scoreA, scoreB };
+  me.matches[matchId] = { scoreA, scoreB, penaltyWinner: penaltyWinner || null };
   return await fbSet(predPath(state.name), me);
 }
 
@@ -436,14 +452,15 @@ async function saveTournamentPicks(champion, goldenBoot){
   return await fbSet(predPath(state.name), me);
 }
 
-async function adminSaveResult(matchId, scoreA, scoreB, status){
+async function adminSaveResult(matchId, scoreA, scoreB, status, penaltyWinner){
   const m = state.matches.find(x=>x.id===matchId);
-  const prevA = m.scoreA, prevB = m.scoreB, prevStatus = m.status;
+  const prevA = m.scoreA, prevB = m.scoreB, prevStatus = m.status, prevPen = m.penaltyWinner;
   m.scoreA = scoreA===''? null : parseInt(scoreA);
   m.scoreB = scoreB===''? null : parseInt(scoreB);
   m.status = status;
+  m.penaltyWinner = penaltyWinner || null;
   const ok = await fbSet(poolPath('matches'), state.matches);
-  if(!ok){ m.scoreA = prevA; m.scoreB = prevB; m.status = prevStatus; }
+  if(!ok){ m.scoreA = prevA; m.scoreB = prevB; m.status = prevStatus; m.penaltyWinner = prevPen; }
   return ok;
 }
 
@@ -468,6 +485,11 @@ async function adminSaveConfigSilent(){
   return await fbSet(poolPath('config'), state.config);
 }
 
+function matchWinner(scoreA, scoreB, penaltyWinner){
+  if(scoreA === scoreB) return penaltyWinner || null; // 'A' or 'B', or null if undecided
+  return scoreA > scoreB ? 'A' : 'B';
+}
+
 function computeScore(playerName){
   const pred = state.predictions[playerName];
   if(!pred) return {points:0, correctWinners:0, exactScores:0, totalPlayed:0};
@@ -478,9 +500,9 @@ function computeScore(playerName){
     const p = pred.matches[m.id];
     if(!p || p.scoreA===undefined || p.scoreA===null || p.scoreB===null || p.scoreB===undefined) continue;
     const weight = ROUND_META[m.round].weight;
-    const actualWinner = m.scoreA===m.scoreB ? 'draw' : (m.scoreA>m.scoreB?'A':'B');
-    const predWinner = p.scoreA===p.scoreB ? 'draw' : (p.scoreA>p.scoreB?'A':'B');
-    if(predWinner===actualWinner && actualWinner!=='draw'){
+    const actualWinner = matchWinner(m.scoreA, m.scoreB, m.penaltyWinner);
+    const predWinner = matchWinner(p.scoreA, p.scoreB, p.penaltyWinner);
+    if(predWinner && predWinner===actualWinner){
       points += 1*weight;
       correctWinners++;
     }
@@ -505,9 +527,9 @@ function pointsForMatch(playerName, m){
   if(!p || p.scoreA===undefined || p.scoreA===null || p.scoreB===null || p.scoreB===undefined) return 0;
   const weight = ROUND_META[m.round].weight;
   let pts = 0;
-  const actualWinner = m.scoreA===m.scoreB ? 'draw' : (m.scoreA>m.scoreB?'A':'B');
-  const predWinner = p.scoreA===p.scoreB ? 'draw' : (p.scoreA>p.scoreB?'A':'B');
-  if(predWinner===actualWinner && actualWinner!=='draw') pts += 1*weight;
+  const actualWinner = matchWinner(m.scoreA, m.scoreB, m.penaltyWinner);
+  const predWinner = matchWinner(p.scoreA, p.scoreB, p.penaltyWinner);
+  if(predWinner && predWinner===actualWinner) pts += 1*weight;
   if(p.scoreA===m.scoreA && p.scoreB===m.scoreB) pts += 2*weight;
   return pts;
 }
@@ -716,6 +738,7 @@ function renderMatchTicket(m){
   const isTBD = m.teamA==='TBD' || m.teamB==='TBD';
   const isCompleted = m.status==='completed';
   const isLive = m.status==='live';
+  const hasSavedPick = pred.scoreA!==undefined && pred.scoreA!==null && pred.scoreB!==undefined && pred.scoreB!==null;
 
   const ticket = el(`
     <div class="ticket">
@@ -729,9 +752,9 @@ function renderMatchTicket(m){
 
   body.appendChild(el(`
     <div class="match-row">
-      <div class="team"><span class="flag">${m.flagA}</span>${m.teamA}</div>
+      <div class="team">${flagTag(m.teamA)}${m.teamA}</div>
       <div class="vs">VS</div>
-      <div class="team" style="justify-content:flex-end; text-align:right;">${m.teamB}<span class="flag">${m.flagB}</span></div>
+      <div class="team" style="justify-content:flex-end; text-align:right;">${m.teamB}${flagTag(m.teamB)}</div>
     </div>
   `));
   body.appendChild(el(`<div class="meta-line">${m.kickoff} ${statusTag}</div>`));
@@ -743,14 +766,18 @@ function renderMatchTicket(m){
 
   if(isCompleted){
     const pts = pointsForMatch(state.name, m);
+    const wasDraw = m.scoreA===m.scoreB;
+    const penNote = wasDraw && m.penaltyWinner ? ` <span style="opacity:0.7;">(${m.penaltyWinner==='A'?m.teamA:m.teamB} won on penalties)</span>` : '';
     body.appendChild(el(`
       <div class="result-line">
         <div class="final-score">${m.scoreA} – ${m.scoreB}</div>
-        <div class="points-pill ${pts===0?'zero':''}">${pts>0? '+'+pts+' pts' : (pred.scoreA!==undefined?'0 pts':'no pick')}</div>
+        <div class="points-pill ${pts===0?'zero':''}">${pts>0? '+'+pts+' pts' : (hasSavedPick?'0 pts':'no pick')}</div>
       </div>
     `));
-    if(pred.scoreA!==undefined && pred.scoreA!==null){
-      body.appendChild(el(`<div class="your-pick-note">Your pick was ${pred.scoreA} – ${pred.scoreB}</div>`));
+    if(penNote) body.appendChild(el(`<div class="your-pick-note">${penNote}</div>`));
+    if(hasSavedPick){
+      const predPenNote = pred.scoreA===pred.scoreB && pred.penaltyWinner ? ` (${pred.penaltyWinner==='A'?m.teamA:m.teamB} on penalties)` : '';
+      body.appendChild(el(`<div class="your-pick-note">Your pick was ${pred.scoreA} – ${pred.scoreB}${predPenNote}</div>`));
     }
   } else {
     const row = el(`
@@ -761,21 +788,62 @@ function renderMatchTicket(m){
       </div>
     `);
     body.appendChild(row);
-    const btn = el(`<button class="primary" style="margin-top:12px;">Save Prediction</button>`);
+
+    const penBox = el(`<div class="pen-box" style="display:none; margin-top:12px;"></div>`);
+    penBox.appendChild(el(`<div class="your-pick-note" style="margin-bottom:6px;">Level after 90 — who wins the shootout?</div>`));
+    const penRow = el(`<div style="display:flex; gap:8px;"></div>`);
+    const btnA = el(`<button type="button" class="ghost" style="flex:1; font-size:12px; padding:8px;">${m.teamA}</button>`);
+    const btnB = el(`<button type="button" class="ghost" style="flex:1; font-size:12px; padding:8px;">${m.teamB}</button>`);
+    penRow.appendChild(btnA); penRow.appendChild(btnB);
+    penBox.appendChild(penRow);
+    body.appendChild(penBox);
+
+    let selectedPenalty = pred.penaltyWinner || null;
+    function highlightPenalty(){
+      btnA.style.background = selectedPenalty==='A' ? 'var(--turf)' : '';
+      btnA.style.color = selectedPenalty==='A' ? 'var(--chalk)' : '';
+      btnB.style.background = selectedPenalty==='B' ? 'var(--turf)' : '';
+      btnB.style.color = selectedPenalty==='B' ? 'var(--chalk)' : '';
+    }
+    btnA.onclick = ()=>{ selectedPenalty='A'; highlightPenalty(); };
+    btnB.onclick = ()=>{ selectedPenalty='B'; highlightPenalty(); };
+    highlightPenalty();
+
+    const saInput = row.querySelector(`#sa-${m.id}`);
+    const sbInput = row.querySelector(`#sb-${m.id}`);
+    function checkDraw(){
+      const sa = saInput.value, sb = sbInput.value;
+      penBox.style.display = (sa!=='' && sb!=='' && parseInt(sa)===parseInt(sb)) ? 'block' : 'none';
+    }
+    saInput.addEventListener('input', checkDraw);
+    sbInput.addEventListener('input', checkDraw);
+    checkDraw();
+
+    const btn = el(`<button class="primary" style="margin-top:12px;">${hasSavedPick ? 'Update Prediction' : 'Save Prediction'}</button>`);
     btn.onclick = ()=>{
-      const sa = row.querySelector(`#sa-${m.id}`).value;
-      const sb = row.querySelector(`#sb-${m.id}`).value;
-      if(sa==='' || sb===''){
+      const sa = saInput.value, sb = sbInput.value;
+      const flashWarning = (msg)=>{
         const orig = btn.textContent;
-        btn.textContent = 'Enter both scores';
+        btn.textContent = msg;
         btn.style.background = 'var(--red)';
         btn.style.color = '#fff';
         setTimeout(()=>{ btn.textContent = orig; btn.style.background=''; btn.style.color=''; }, 1400);
-        return;
-      }
-      withButtonFeedback(btn, ()=> savePrediction(m.id, parseInt(sa), parseInt(sb)));
+      };
+      if(sa==='' || sb===''){ flashWarning('Enter both scores'); return; }
+      const isDraw = parseInt(sa)===parseInt(sb);
+      if(isDraw && !selectedPenalty){ flashWarning('Pick the shootout winner'); return; }
+      withButtonFeedback(
+        btn,
+        ()=> savePrediction(m.id, parseInt(sa), parseInt(sb), isDraw ? selectedPenalty : null),
+        hasSavedPick ? 'Updated ✓' : 'Saved ✓'
+      );
     };
     body.appendChild(btn);
+
+    if(hasSavedPick){
+      const savedPenNote = pred.scoreA===pred.scoreB && pred.penaltyWinner ? ` (${pred.penaltyWinner==='A'?m.teamA:m.teamB} on penalties)` : '';
+      body.appendChild(el(`<div class="your-pick-note" style="margin-top:8px;">✓ Currently saved: ${pred.scoreA} – ${pred.scoreB}${savedPenNote}</div>`));
+    }
   }
 
   return ticket;
@@ -885,17 +953,49 @@ function renderAdmin(app){
         </div>
       `);
       mc.appendChild(resultRow);
+
+      const adminPenBox = el(`<div style="display:none; margin-bottom:10px;"></div>`);
+      adminPenBox.appendChild(el(`<div class="lb-sub" style="margin-bottom:6px;">Level after 90 — shootout winner:</div>`));
+      const adminPenRow = el(`<div style="display:flex; gap:8px;"></div>`);
+      const adminBtnA = el(`<button type="button" class="ghost" style="flex:1; font-size:12px; padding:8px;">${m.teamA}</button>`);
+      const adminBtnB = el(`<button type="button" class="ghost" style="flex:1; font-size:12px; padding:8px;">${m.teamB}</button>`);
+      adminPenRow.appendChild(adminBtnA); adminPenRow.appendChild(adminBtnB);
+      adminPenBox.appendChild(adminPenRow);
+      mc.appendChild(adminPenBox);
+
+      let adminPenaltyWinner = m.penaltyWinner || null;
+      function adminHighlightPen(){
+        adminBtnA.style.background = adminPenaltyWinner==='A' ? 'var(--turf)' : '';
+        adminBtnA.style.color = adminPenaltyWinner==='A' ? 'var(--chalk)' : '';
+        adminBtnB.style.background = adminPenaltyWinner==='B' ? 'var(--turf)' : '';
+        adminBtnB.style.color = adminPenaltyWinner==='B' ? 'var(--chalk)' : '';
+      }
+      adminBtnA.onclick = ()=>{ adminPenaltyWinner='A'; adminHighlightPen(); };
+      adminBtnB.onclick = ()=>{ adminPenaltyWinner='B'; adminHighlightPen(); };
+      adminHighlightPen();
+
+      const raInput = resultRow.querySelector(`#ra-${m.id}`);
+      const rbInput = resultRow.querySelector(`#rb-${m.id}`);
+      function adminCheckDraw(){
+        const ra = raInput.value, rb = rbInput.value;
+        adminPenBox.style.display = (ra!=='' && rb!=='' && parseInt(ra)===parseInt(rb)) ? 'block' : 'none';
+      }
+      raInput.addEventListener('input', adminCheckDraw);
+      rbInput.addEventListener('input', adminCheckDraw);
+      adminCheckDraw();
+
       const resultBtn = el(`<button class="amber" style="border:none;">Mark Final</button>`);
       resultBtn.onclick = ()=>{
-        const ra = resultRow.querySelector(`#ra-${m.id}`).value;
-        const rb = resultRow.querySelector(`#rb-${m.id}`).value;
-        if(ra==='' || rb===''){
+        const ra = raInput.value, rb = rbInput.value;
+        const flashWarning = (msg)=>{
           const orig = resultBtn.textContent;
-          resultBtn.textContent = 'Enter both scores';
+          resultBtn.textContent = msg;
           setTimeout(()=>{ resultBtn.textContent = orig; }, 1400);
-          return;
-        }
-        withButtonFeedback(resultBtn, ()=> adminSaveResult(m.id, ra, rb, 'completed'), 'Marked Final ✓');
+        };
+        if(ra==='' || rb===''){ flashWarning('Enter both scores'); return; }
+        const isDraw = parseInt(ra)===parseInt(rb);
+        if(isDraw && !adminPenaltyWinner){ flashWarning('Pick the shootout winner'); return; }
+        withButtonFeedback(resultBtn, ()=> adminSaveResult(m.id, ra, rb, 'completed', isDraw ? adminPenaltyWinner : null), 'Marked Final ✓');
       };
       mc.appendChild(resultBtn);
       app.appendChild(mc);
