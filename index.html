@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Matchday Pool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -59,7 +60,7 @@
   nav.tabs{
     display:flex; gap:6px; background:rgba(0,0,0,0.18);
     padding:6px; border-radius:14px; margin-bottom:22px;
-    overflow-x:auto;
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
   }
   nav.tabs button{
     flex:1; white-space:nowrap; padding:11px 10px; border:none; border-radius:10px;
@@ -201,6 +202,32 @@
 
   .footer-note{ text-align:center; font-size:11px; opacity:0.4; margin-top:26px; font-family:'Space Mono',monospace;}
   ::-webkit-scrollbar{height:6px;}
+
+  @media (max-width: 480px){
+    .wrap{ padding:18px 12px 0; }
+    header.hero{ margin-bottom:16px; }
+    .subtitle{ font-size:11px; letter-spacing:1.5px; }
+
+    nav.tabs button{ flex:0 0 auto; min-width:120px; font-size:12.5px; padding:10px 8px; }
+
+    .card{ padding:16px; border-radius:14px; }
+
+    .ticket .stub{ width:52px; font-size:10px; padding:6px 3px; }
+    .ticket .stub .rw{ font-size:14px; }
+    .team{ font-size:14.5px; gap:6px; }
+    .flag-chip{ width:20px; height:15px; }
+    .vs{ font-size:10px; padding:0 3px; }
+
+    .score-input-row input{ width:46px; font-size:18px; padding:7px 0; }
+
+    .admin-match-row{ grid-template-columns:1fr; }
+
+    .lb-row{ gap:10px; }
+    .rank-shirt{ width:32px; height:32px; font-size:14px; }
+    .flip-score{ font-size:18px; padding:5px 10px; min-width:44px; }
+
+    button.primary, button.ghost, button.amber{ font-size:13px; padding:11px 14px; }
+  }
 </style>
 </head>
 <body>
@@ -247,6 +274,76 @@ function flagTag(teamName){
     return `<span class="flag-chip flag-chip-placeholder">?</span>`;
   }
   return `<img class="flag-chip" src="https://flagcdn.com/48x36/${code}.png" alt="${teamName} flag" width="24" height="18">`;
+}
+
+// Free, unofficial ESPN scoreboard feed — no API key required.
+const ESPN_SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260628-20260801&limit=200';
+const ESPN_NAME_ALIASES = {
+  'United States':'USA', 'USA':'USA',
+  'Korea Republic':'South Korea', 'IR Iran':'Iran',
+  'Ivory Coast':'Ivory Coast', "Côte d'Ivoire":'Ivory Coast',
+  'Cabo Verde':'Cape Verde'
+};
+function normalizeTeamName(name){
+  return (ESPN_NAME_ALIASES[name] || name || '').trim().toLowerCase();
+}
+
+async function syncFromESPN(silent){
+  try{
+    const res = await fetch(ESPN_SCOREBOARD_URL);
+    if(!res.ok) throw new Error('ESPN request failed: ' + res.status);
+    const data = await res.json();
+    const events = data.events || [];
+    let changed = false;
+
+    for(const m of state.matches){
+      if(m.status === 'completed') continue; // never overwrite a manually confirmed result
+      if(m.teamA === 'TBD' || m.teamB === 'TBD') continue;
+
+      const wantA = normalizeTeamName(m.teamA);
+      const wantB = normalizeTeamName(m.teamB);
+
+      const ev = events.find(e=>{
+        const comp = e.competitions && e.competitions[0];
+        if(!comp || !comp.competitors || comp.competitors.length !== 2) return false;
+        const names = comp.competitors.map(c => normalizeTeamName(c.team.displayName));
+        return names.includes(wantA) && names.includes(wantB);
+      });
+      if(!ev) continue;
+
+      const comp = ev.competitions[0];
+      const isFinal = comp.status && comp.status.type && comp.status.type.completed;
+      if(!isFinal) continue;
+
+      const compA = comp.competitors.find(c => normalizeTeamName(c.team.displayName) === wantA);
+      const compB = comp.competitors.find(c => normalizeTeamName(c.team.displayName) === wantB);
+      if(!compA || !compB) continue;
+
+      const scoreA = parseInt(compA.score);
+      const scoreB = parseInt(compB.score);
+      let penaltyWinner = null;
+      if(scoreA === scoreB){
+        if(compA.winner) penaltyWinner = 'A';
+        else if(compB.winner) penaltyWinner = 'B';
+        else continue; // drawn and no winner flag yet — don't guess, wait for next sync
+      }
+
+      m.scoreA = scoreA;
+      m.scoreB = scoreB;
+      m.penaltyWinner = penaltyWinner;
+      m.status = 'completed';
+      changed = true;
+    }
+
+    if(changed){
+      await fbSet(poolPath('matches'), state.matches);
+      render(); // reflect new results immediately, even for a silent background sync
+    }
+    return { ok:true, changed };
+  }catch(e){
+    console.error('ESPN sync failed', e);
+    return { ok:false, changed:false };
+  }
 }
 
 const CHAMPION_OPTIONS = ['Morocco','France','Norway','England','Portugal','Spain','USA','Belgium','Argentina','Egypt','Switzerland','Colombia'];
@@ -372,6 +469,8 @@ async function loadPoolData(){
   if(state.name && !state.predictions[state.name]){
     state.predictions[state.name] = { matches:{}, champion:'', goldenBoot:'' };
   }
+
+  syncFromESPN(true); // silent background attempt — won't block the UI or show errors
 }
 
 async function createPool(name){
@@ -584,12 +683,12 @@ function render(){
 
   const poolBar = el(`
     <div class="card" style="padding:12px 16px; margin-bottom:14px;">
-      <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
         <div>
           <div class="lb-sub" style="margin-top:0;">Pool Code</div>
           <div style="font-family:'Space Mono',monospace; font-size:18px; font-weight:700; letter-spacing:1.5px; word-break:break-all;">${state.poolCode}</div>
         </div>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-shrink:0;">
           <button class="ghost" id="copyCodeBtn">Copy</button>
           <button class="ghost" id="leaveBtn">Switch</button>
         </div>
@@ -889,6 +988,21 @@ function renderAdmin(app){
   card.appendChild(el(`<h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Commissioner Mode</h3>`));
   card.appendChild(el(`<p style="font-size:13px; opacity:0.75;">No password — this is honor-system for the group. Anyone can enter results as matches finish, fill in future-round matchups, and lock tournament picks.</p>`));
   app.appendChild(card);
+
+  const syncCard = el(`<div class="card"></div>`);
+  syncCard.appendChild(el(`<h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Auto-Sync Results</h3>`));
+  syncCard.appendChild(el(`<p style="font-size:13px; opacity:0.75;">Pulls finished results from ESPN's public scoreboard automatically whenever anyone opens the app. This never touches a match you've already marked final by hand — use this button to force a check right now.</p>`));
+  const syncBtn = el(`<button class="ghost">Sync Results Now</button>`);
+  syncBtn.onclick = ()=>{
+    withButtonFeedback(syncBtn, async ()=>{
+      const result = await syncFromESPN(false);
+      if(!result.ok) return false;
+      syncBtn.dataset.msg = result.changed ? 'found new results' : 'no new results yet';
+      return true;
+    }, 'Synced ✓');
+  };
+  syncCard.appendChild(syncBtn);
+  app.appendChild(syncCard);
 
   const lockCard = el(`<div class="card"></div>`);
   const toggleRow = el(`
