@@ -263,13 +263,13 @@ function slugify(str){
 }
 
 // Personal, low-stakes identity only — safe to lose if the app is ever republished.
-async function safeGet(key, shared){
-  try{ const r = await window.storage.get(key, shared); return r ? JSON.parse(r.value) : null; }
-  catch(e){ return null; }
+function safeGet(key){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+  catch(e){ console.error('localStorage get failed', key, e); return null; }
 }
-async function safeSet(key, value, shared){
-  try{ await window.storage.set(key, JSON.stringify(value), shared); }
-  catch(e){ console.error('storage set failed', key, e); }
+function safeSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }
+  catch(e){ console.error('localStorage set failed', key, e); }
 }
 
 // Real game data — lives in Firebase, independent of Claude publishing/versioning.
@@ -294,9 +294,37 @@ async function fbSet(path, value){
 function poolPath(suffix){ return `pools/${state.poolCode}/${suffix}`; }
 function predPath(name){ return `pools/${state.poolCode}/predictions/${slugify(name)}`; }
 
+async function withButtonFeedback(btn, actionFn, successLabel){
+  const originalLabel = btn.textContent;
+  const originalBg = btn.style.background;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  let ok = false;
+  try{ ok = await actionFn(); }catch(e){ console.error(e); ok = false; }
+  if(ok){
+    btn.textContent = successLabel || 'Saved ✓';
+    btn.style.background = 'var(--turf)';
+    btn.style.color = 'var(--chalk)';
+    setTimeout(()=>{ render(); }, 800);
+  } else {
+    btn.textContent = 'Failed — tap to retry';
+    btn.style.background = 'var(--red)';
+    btn.style.color = '#fff';
+    btn.disabled = false;
+    setTimeout(()=>{
+      if(document.body.contains(btn)){
+        btn.textContent = originalLabel;
+        btn.style.background = originalBg;
+        btn.style.color = '';
+      }
+    }, 2200);
+  }
+  return ok;
+}
+
 async function init(){
-  const myName = await safeGet('my_name', false);
-  const myPoolCode = await safeGet('my_pool_code', false);
+  const myName = safeGet('my_name');
+  const myPoolCode = safeGet('my_pool_code');
   state.name = myName;
   state.poolCode = myPoolCode;
 
@@ -340,8 +368,8 @@ async function createPool(name){
     if(!clash) break;
     code = genCode();
   }
-  await safeSet('my_name', name, false);
-  await safeSet('my_pool_code', code, false);
+  safeSet('my_name', name);
+  safeSet('my_pool_code', code);
   state.name = name;
   state.poolCode = code;
   state.joinError = '';
@@ -363,8 +391,8 @@ async function joinExistingPool(name, code){
     render();
     return;
   }
-  await safeSet('my_name', name, false);
-  await safeSet('my_pool_code', code, false);
+  safeSet('my_name', name);
+  safeSet('my_pool_code', code);
   state.name = name;
   state.joinError = '';
   await loadPoolData();
@@ -384,8 +412,8 @@ async function addSelfToPool(name){
 }
 
 async function leavePool(){
-  await safeSet('my_name', '', false);
-  await safeSet('my_pool_code', '', false);
+  safeSet('my_name', '');
+  safeSet('my_pool_code', '');
   state.name = null;
   state.poolCode = null;
   state.matches = null;
@@ -398,39 +426,46 @@ async function leavePool(){
 async function savePrediction(matchId, scoreA, scoreB){
   const me = state.predictions[state.name];
   me.matches[matchId] = { scoreA, scoreB };
-  await fbSet(predPath(state.name), me);
-  render();
+  return await fbSet(predPath(state.name), me);
 }
 
 async function saveTournamentPicks(champion, goldenBoot){
   const me = state.predictions[state.name];
   me.champion = champion;
   me.goldenBoot = goldenBoot;
-  await fbSet(predPath(state.name), me);
-  render();
+  return await fbSet(predPath(state.name), me);
 }
 
 async function adminSaveResult(matchId, scoreA, scoreB, status){
   const m = state.matches.find(x=>x.id===matchId);
+  const prevA = m.scoreA, prevB = m.scoreB, prevStatus = m.status;
   m.scoreA = scoreA===''? null : parseInt(scoreA);
   m.scoreB = scoreB===''? null : parseInt(scoreB);
   m.status = status;
-  await fbSet(poolPath('matches'), state.matches);
-  render();
+  const ok = await fbSet(poolPath('matches'), state.matches);
+  if(!ok){ m.scoreA = prevA; m.scoreB = prevB; m.status = prevStatus; }
+  return ok;
 }
 
 async function adminSaveTeams(matchId, teamA, teamB, kickoff){
   const m = state.matches.find(x=>x.id===matchId);
+  const prev = { teamA:m.teamA, teamB:m.teamB, kickoff:m.kickoff };
   m.teamA = teamA || 'TBD';
   m.teamB = teamB || 'TBD';
   m.kickoff = kickoff || 'TBD';
-  await fbSet(poolPath('matches'), state.matches);
-  render();
+  const ok = await fbSet(poolPath('matches'), state.matches);
+  if(!ok){ m.teamA = prev.teamA; m.teamB = prev.teamB; m.kickoff = prev.kickoff; }
+  return ok;
 }
 
 async function adminSaveConfig(){
-  await fbSet(poolPath('config'), state.config);
+  const ok = await fbSet(poolPath('config'), state.config);
   render();
+  return ok;
+}
+
+async function adminSaveConfigSilent(){
+  return await fbSet(poolPath('config'), state.config);
 }
 
 function computeScore(playerName){
@@ -730,8 +765,15 @@ function renderMatchTicket(m){
     btn.onclick = ()=>{
       const sa = row.querySelector(`#sa-${m.id}`).value;
       const sb = row.querySelector(`#sb-${m.id}`).value;
-      if(sa==='' || sb==='') return;
-      savePrediction(m.id, parseInt(sa), parseInt(sb));
+      if(sa==='' || sb===''){
+        const orig = btn.textContent;
+        btn.textContent = 'Enter both scores';
+        btn.style.background = 'var(--red)';
+        btn.style.color = '#fff';
+        setTimeout(()=>{ btn.textContent = orig; btn.style.background=''; btn.style.color=''; }, 1400);
+        return;
+      }
+      withButtonFeedback(btn, ()=> savePrediction(m.id, parseInt(sa), parseInt(sb)));
     };
     body.appendChild(btn);
   }
@@ -760,7 +802,7 @@ function renderPicks(app){
   card.appendChild(gbInput);
 
   const saveBtn = el(`<button class="primary" style="margin-top:18px;" ${state.config.tournamentLocked?'disabled':''}>Save Picks</button>`);
-  saveBtn.onclick = ()=> saveTournamentPicks(select.value, gbInput.value);
+  saveBtn.onclick = ()=> withButtonFeedback(saveBtn, ()=> saveTournamentPicks(select.value, gbInput.value));
   card.appendChild(saveBtn);
 
   app.appendChild(card);
@@ -804,7 +846,7 @@ function renderAdmin(app){
   lockCard.appendChild(el(`<label class="field-label">Confirmed Golden Boot Winner</label>`));
   const gbInput = el(`<input type="text" id="actualGB" placeholder="Player name" value="${state.config.actualGoldenBoot||''}">`);
   const gbBtn = el(`<button class="ghost" style="margin-top:8px;">Save</button>`);
-  gbBtn.onclick = ()=>{ state.config.actualGoldenBoot = gbInput.value; adminSaveConfig(); };
+  gbBtn.onclick = ()=>{ state.config.actualGoldenBoot = gbInput.value; withButtonFeedback(gbBtn, adminSaveConfigSilent, 'Saved ✓'); };
   lockCard.appendChild(gbInput);
   lockCard.appendChild(gbBtn);
   app.appendChild(lockCard);
@@ -828,11 +870,11 @@ function renderAdmin(app){
       mc.appendChild(kickoffRow);
       const teamsBtn = el(`<button class="ghost" style="margin-bottom:14px;">Update Matchup</button>`);
       teamsBtn.onclick = ()=>{
-        adminSaveTeams(m.id,
+        withButtonFeedback(teamsBtn, ()=> adminSaveTeams(m.id,
           teamsRow.querySelector(`#ta-${m.id}`).value,
           teamsRow.querySelector(`#tb-${m.id}`).value,
           kickoffRow.value
-        );
+        ), 'Updated ✓');
       };
       mc.appendChild(teamsBtn);
 
@@ -845,11 +887,15 @@ function renderAdmin(app){
       mc.appendChild(resultRow);
       const resultBtn = el(`<button class="amber" style="border:none;">Mark Final</button>`);
       resultBtn.onclick = ()=>{
-        adminSaveResult(m.id,
-          resultRow.querySelector(`#ra-${m.id}`).value,
-          resultRow.querySelector(`#rb-${m.id}`).value,
-          'completed'
-        );
+        const ra = resultRow.querySelector(`#ra-${m.id}`).value;
+        const rb = resultRow.querySelector(`#rb-${m.id}`).value;
+        if(ra==='' || rb===''){
+          const orig = resultBtn.textContent;
+          resultBtn.textContent = 'Enter both scores';
+          setTimeout(()=>{ resultBtn.textContent = orig; }, 1400);
+          return;
+        }
+        withButtonFeedback(resultBtn, ()=> adminSaveResult(m.id, ra, rb, 'completed'), 'Marked Final ✓');
       };
       mc.appendChild(resultBtn);
       app.appendChild(mc);
