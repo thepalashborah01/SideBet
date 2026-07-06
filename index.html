@@ -310,6 +310,7 @@ async function syncFromESPN(silent){
         return names.includes(wantA) && names.includes(wantB);
       });
       if(!ev) continue;
+      if(m.espnEventId !== ev.id){ m.espnEventId = ev.id; changed = true; }
 
       const comp = ev.competitions[0];
       const isFinal = comp.status && comp.status.type && comp.status.type.completed;
@@ -346,7 +347,121 @@ async function syncFromESPN(silent){
   }
 }
 
+let liveScorers = null; // populated from ESPN match summaries once synced
+
+function extractGoalScorers(summaryData){
+  const scorers = [];
+  try{
+    const comp = summaryData.header && summaryData.header.competitions && summaryData.header.competitions[0];
+    const details = (comp && comp.details) || summaryData.details || [];
+    details.forEach(d=>{
+      const typeText = (d.type && (d.type.text || d.type.abbreviation)) || '';
+      if(!/goal/i.test(typeText)) return;
+      if(/own\s*goal/i.test(typeText)) return; // own goals don't count toward the scorer's Golden Boot
+      const athletes = d.athletesInvolved || (d.athlete ? [d.athlete] : []);
+      const teamName = d.team && (d.team.displayName || d.team.name);
+      athletes.forEach(a=>{
+        if(a && a.displayName) scorers.push({ name:a.displayName, team: teamName || '' });
+      });
+    });
+  }catch(e){ console.error('extractGoalScorers parse failed', e); }
+  return scorers;
+}
+
+async function syncGoalScorers(force){
+  try{
+    const now = Date.now();
+    if(!force){
+      const lastSync = await fbGet(poolPath('scorersSyncedAt'));
+      if(lastSync && (now - lastSync) < 5*60*1000){
+        const cached = await fbGet(poolPath('scorers'));
+        if(cached && cached.length){ liveScorers = cached; return { ok:true, changed:false }; }
+      }
+    }
+
+    const tally = {};
+    for(const m of state.matches){
+      if(m.status !== 'completed' || !m.espnEventId) continue;
+      try{
+        const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=${m.espnEventId}`);
+        if(!res.ok) continue;
+        const data = await res.json();
+        extractGoalScorers(data).forEach(g=>{
+          if(!tally[g.name]) tally[g.name] = { name:g.name, team:g.team, goals:0 };
+          tally[g.name].goals += 1;
+        });
+      }catch(e){ console.error('summary fetch failed', m.id, e); }
+    }
+
+    const list = Object.values(tally).sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+    if(list.length){
+      liveScorers = list;
+      await fbSet(poolPath('scorers'), list);
+      await fbSet(poolPath('scorersSyncedAt'), now);
+      render();
+      return { ok:true, changed:true };
+    }
+    return { ok:true, changed:false };
+  }catch(e){
+    console.error('syncGoalScorers failed', e);
+    return { ok:false, changed:false };
+  }
+}
+
+function currentScorerList(){
+  if(liveScorers && liveScorers.length) return liveScorers.map(s=>[s.goals, s.name, s.team]);
+  return GOAL_SCORERS; // fallback snapshot if live data hasn't loaded yet
+}
+
 const CHAMPION_OPTIONS = ['Morocco','France','Norway','England','Portugal','Spain','USA','Belgium','Argentina','Egypt','Switzerland','Colombia'];
+
+// Snapshot of scorers through the Round of 16 (goals, name, team) — sorted highest first.
+// New scorers will emerge in the QF/SF/Final, so an "Other" fallback is included wherever this is used.
+const GOAL_SCORERS = [
+  [7,'Lionel Messi','Argentina'],[7,'Kylian Mbappe','France'],
+  [5,'Erling Haaland','Norway'],[5,'Harry Kane','England'],
+  [4,'Vinicius Junior','Brazil'],[4,'Ousmane Dembele','France'],[4,'Ismaila Sarr','Senegal'],[4,'Mikel Oyarzabal','Spain'],
+  [3,'Jonathan David','Canada'],[3,'Deniz Undav','Germany'],[3,'Johan Manzambi','Switzerland'],[3,'Matheus Cunha','Brazil'],
+  [3,'Ismael Saibari','Morocco'],[3,'Brian Brobbey','Netherlands'],[3,'Elijah Just','New Zealand'],[3,'Kai Havertz','Germany'],
+  [3,'Cody Gakpo','Netherlands'],[3,'Julian Quinones','Mexico'],[3,'Folarin Balogun','USA'],[3,'Cristiano Ronaldo','Portugal'],
+  [2,'Yasin Ayari','Sweden'],[2,'Cyle Larin','Canada'],[2,'Crysencio Summerville','Netherlands'],[2,'Daichi Kamada','Japan'],
+  [2,'Ayase Ueda','Japan'],[2,'Maxi Araujo','Uruguay'],[2,'Ruben Vargas','Switzerland'],[2,'Ermin Mahmic','Bosnia & Herzegovina'],
+  [2,'Nicolas Pepe','Ivory Coast'],[2,'Anthony Elanga','Sweden'],[2,'Pape Gueye','Senegal'],[2,'Iliman Ndiaye','Senegal'],
+  [2,'Leandro Trossard','Belgium'],[2,'Jude Bellingham','England'],[2,'Yoane Wissa','DR Congo'],[2,'Riyad Mahrez','Algeria'],
+  [2,'Marko Arnautovic','Austria'],[2,'Amad Diallo','Ivory Coast'],[2,'Bradley Barcola','France'],[2,'Raul Jimenez','Mexico'],
+  [2,'Romelu Lukaku','Belgium'],[2,'Youri Tielemans','Belgium'],[2,'Habib Diarra','Senegal'],[2,'Breel Embolo','Switzerland'],
+  [2,'Azzedine Ounahi','Morocco'],
+  [1,'Ladislav Krejci','Czechia'],[1,'In-Beom Hwang','South Korea'],[1,'Hyun-Gyu Oh','South Korea'],[1,'Jovo Lukic','Bosnia & Herzegovina'],
+  [1,'Mauricio','Paraguay'],[1,'Gio Reyna','USA'],[1,'Boualem Khoukhi','Qatar'],[1,'John McGinn','Scotland'],
+  [1,'Nestory Irankunda','Australia'],[1,'Connor Metcalfe','Australia'],[1,'Felix Nmecha','Germany'],[1,'Nico Schlotterbeck','Germany'],
+  [1,'Livano Comenencia','Curacao'],[1,'Jamal Musiala','Germany'],[1,'Nathaniel Brown','Germany'],[1,'Virgil van Dijk','Netherlands'],
+  [1,'Keito Nakamura','Japan'],[1,'Alexander Isak','Sweden'],[1,'Omar Rekik','Tunisia'],[1,'Viktor Gyokeres','Sweden'],
+  [1,'Mattias Svanberg','Sweden'],[1,'Abdulelah Al Amri','Saudi Arabia'],[1,'Ayman Hussein','Iraq'],[1,'Eman Ashour','Egypt'],
+  [1,'Ibrahim Mbaye','Senegal'],[1,'Leo Ostigard','Norway'],[1,'Mohamed Mohebi','Iran'],[1,'Ramin Rezaeian','Iran'],
+  [1,'Romano Schmid','Austria'],[1,'Ali Iyad Olwan','Jordan'],[1,'Joao Neves','Portugal'],[1,'Martin Baturina','Croatia'],
+  [1,'Petar Musa','Croatia'],[1,'Marcus Rashford','England'],[1,'Caleb Yirenkyi','Ghana'],[1,'Daniel Munoz','Colombia'],
+  [1,'Abbosbek Fayzullayev','Uzbekistan'],[1,'Luis Diaz','Colombia'],[1,'Jaminton Campaz','Colombia'],[1,'Michal Sadilek','Czechia'],
+  [1,'Granit Xhaka','Switzerland'],[1,'Nathan Saliba','Canada'],[1,'Luis Romo','Mexico'],[1,'Alex Freeman','USA'],
+  [1,'Matias Galarza','Paraguay'],[1,'Franck Kessie','Ivory Coast'],[1,'Junya Ito','Japan'],[1,'Lamine Yamal','Spain'],
+  [1,'Kevin Pina','Cape Verde'],[1,'Agustin Canobbio','Uruguay'],[1,'Helio Varela','Cape Verde'],[1,'Finn Surman','New Zealand'],
+  [1,'Mostafa Ziko','Egypt'],[1,'Mohamed Salah','Egypt'],[1,'Trezeguet','Egypt'],[1,'Marcus Pedersen','Norway'],
+  [1,'Amine Gouiri','Algeria'],[1,'Nadhir Benbouali','Algeria'],[1,'Nizar Al-Rashdan','Jordan'],[1,'Nuno Mendes','Portugal'],
+  [1,'Rafael Leao','Portugal'],[1,'Ante Budimir','Croatia'],[1,'Kerim Alajbegovic','Bosnia & Herzegovina'],[1,'Hassan Al Haidos','Qatar'],
+  [1,'Promise David','Canada'],[1,'Wilson Isidor','Haiti'],[1,'Achraf Hakimi','Morocco'],[1,'Soufiane Rahimi','Morocco'],
+  [1,'Gessime Yassine','Morocco'],[1,'Thapelo Maseko','South Africa'],[1,'Mateo Chavez','Mexico'],[1,'Alvaro Fidalgo','Mexico'],
+  [1,'Nilson Angulo','Ecuador'],[1,'Leroy Sane','Germany'],[1,'Gonzalo Plata','Ecuador'],[1,'Hazem Mastouri','Tunisia'],
+  [1,'Daizen Maeda','Japan'],[1,'Jan Paul van Hecke','Netherlands'],[1,'Auston Trusty','USA'],[1,'Arda Guler','Turkiye'],
+  [1,'Orkun Kokcu','Turkiye'],[1,'Sebastian Berhalter','USA'],[1,'Kaan Ayhan','Turkiye'],[1,'Thelo Aasgaard','Norway'],
+  [1,'Desire Doue','France'],[1,'Alex Baena','Spain'],[1,'Mahmoud Saber','Egypt'],[1,'Kevin De Bruyne','Belgium'],
+  [1,'Alexis Saelemaekers','Belgium'],[1,'Petar Sucic','Croatia'],[1,'Nikola Vlasic','Croatia'],[1,'Derrick Luckassen','Ghana'],
+  [1,'Fiston Mayele','DR Congo'],[1,'Eldor Shomurodov','Uzbekistan'],[1,'Rafik Belghali','Algeria'],[1,'Marcel Sabitzer','Austria'],
+  [1,'Sasa Kalajdzic','Austria'],[1,'Giovani Lo Celso','Argentina'],[1,'Lautaro Martinez','Argentina'],[1,'Mousa Tamari','Jordan'],
+  [1,'Stephen Eustaquio','Canada'],[1,'Kaishu Sano','Japan'],[1,'Casemiro','Brazil'],[1,'Gabriel Martinelli','Brazil'],
+  [1,'Julio Enciso','Paraguay'],[1,'Issa Diop','Morocco'],[1,'Antonio Nusa','Norway'],[1,'Brian Cipenga','DR Congo'],
+  [1,'Malik Tillman','USA'],[1,'Pedro Porro','Spain'],[1,'Ivan Perisic','Croatia'],[1,'Goncalo Ramos','Portugal'],
+  [1,'Dan Ndoye','Switzerland'],[1,'Lisandro Martinez','Argentina'],[1,'Deroy Duarte','Cape Verde'],[1,'Sidny Lopes Cabral','Cape Verde'],
+  [1,'Jhon Arias','Colombia']
+];
 
 let state = {
   name: null,
@@ -470,7 +585,10 @@ async function loadPoolData(){
     state.predictions[state.name] = { matches:{}, champion:'', goldenBoot:'' };
   }
 
-  syncFromESPN(true); // silent background attempt — won't block the UI or show errors
+  const cachedScorers = await fbGet(poolPath('scorers'));
+  if(cachedScorers && cachedScorers.length) liveScorers = cachedScorers;
+
+  syncFromESPN(true).then(()=> syncGoalScorers(false)); // silent background attempt — won't block the UI or show errors
 }
 
 async function createPool(name){
@@ -948,6 +1066,46 @@ function renderMatchTicket(m){
   return ticket;
 }
 
+function buildGoldenBootField(idPrefix, currentValue, disabled){
+  const wrap = document.createElement('div');
+  const select = el(`<select id="${idPrefix}Select" ${disabled?'disabled':''}></select>`);
+  select.appendChild(el(`<option value="">Choose a scorer…</option>`));
+
+  const isKnown = GOAL_SCORERS.some(([g,name])=> name === currentValue) || (liveScorers && liveScorers.some(s=>s.name===currentValue));
+  const grouped = {};
+  currentScorerList().forEach(([goals,name,team])=>{
+    if(!grouped[goals]) grouped[goals] = [];
+    grouped[goals].push([name,team]);
+  });
+  Object.keys(grouped).sort((a,b)=>b-a).forEach(goals=>{
+    const group = el(`<optgroup label="${goals} goal${goals=='1'?'':'s'}"></optgroup>`);
+    grouped[goals].forEach(([name,team])=>{
+      const opt = el(`<option value="${name}">${name} (${team})</option>`);
+      if(currentValue === name) opt.selected = true;
+      group.appendChild(opt);
+    });
+    select.appendChild(group);
+  });
+  select.appendChild(el(`<option value="__other__">Other / not listed yet…</option>`));
+
+  const otherInput = el(`<input type="text" placeholder="Type player name" style="margin-top:8px; display:none;" ${disabled?'disabled':''} value="${(!isKnown && currentValue) ? currentValue : ''}">`);
+  if(currentValue && !isKnown){
+    select.value = '__other__';
+    otherInput.style.display = 'block';
+  }
+  select.onchange = ()=>{
+    otherInput.style.display = select.value === '__other__' ? 'block' : 'none';
+  };
+
+  wrap.appendChild(select);
+  wrap.appendChild(otherInput);
+
+  return {
+    element: wrap,
+    getValue: ()=> select.value === '__other__' ? otherInput.value.trim() : select.value
+  };
+}
+
 function renderPicks(app){
   const me = state.predictions[state.name];
   const card = el(`<div class="card"></div>`);
@@ -965,11 +1123,11 @@ function renderPicks(app){
   card.appendChild(select);
 
   card.appendChild(el(`<label class="field-label">Golden Boot Winner</label>`));
-  const gbInput = el(`<input type="text" id="goldenBootInput" placeholder="Player name" value="${me.goldenBoot||''}" ${state.config.tournamentLocked?'disabled':''}>`);
-  card.appendChild(gbInput);
+  const gbField = buildGoldenBootField('goldenBoot', me.goldenBoot || '', state.config.tournamentLocked);
+  card.appendChild(gbField.element);
 
   const saveBtn = el(`<button class="primary" style="margin-top:18px;" ${state.config.tournamentLocked?'disabled':''}>Save Picks</button>`);
-  saveBtn.onclick = ()=> withButtonFeedback(saveBtn, ()=> saveTournamentPicks(select.value, gbInput.value));
+  saveBtn.onclick = ()=> withButtonFeedback(saveBtn, ()=> saveTournamentPicks(select.value, gbField.getValue()));
   card.appendChild(saveBtn);
 
   app.appendChild(card);
@@ -996,9 +1154,8 @@ function renderAdmin(app){
   syncBtn.onclick = ()=>{
     withButtonFeedback(syncBtn, async ()=>{
       const result = await syncFromESPN(false);
-      if(!result.ok) return false;
-      syncBtn.dataset.msg = result.changed ? 'found new results' : 'no new results yet';
-      return true;
+      await syncGoalScorers(true);
+      return result.ok;
     }, 'Synced ✓');
   };
   syncCard.appendChild(syncBtn);
@@ -1026,10 +1183,10 @@ function renderAdmin(app){
   lockCard.appendChild(champSel);
 
   lockCard.appendChild(el(`<label class="field-label">Confirmed Golden Boot Winner</label>`));
-  const gbInput = el(`<input type="text" id="actualGB" placeholder="Player name" value="${state.config.actualGoldenBoot||''}">`);
+  const adminGbField = buildGoldenBootField('actualGB', state.config.actualGoldenBoot || '', false);
+  lockCard.appendChild(adminGbField.element);
   const gbBtn = el(`<button class="ghost" style="margin-top:8px;">Save</button>`);
-  gbBtn.onclick = ()=>{ state.config.actualGoldenBoot = gbInput.value; withButtonFeedback(gbBtn, adminSaveConfigSilent, 'Saved ✓'); };
-  lockCard.appendChild(gbInput);
+  gbBtn.onclick = ()=>{ state.config.actualGoldenBoot = adminGbField.getValue(); withButtonFeedback(gbBtn, adminSaveConfigSilent, 'Saved ✓'); };
   lockCard.appendChild(gbBtn);
   app.appendChild(lockCard);
 
