@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Matchday Pool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --turf:#1e4d3b;
+    --turf-deep:#0f2e21;
+    --turf-light:#2f6b4f;
+    --paper:#faf7ef;
+    --chalk:#f2f6f0;
+    --ink:#12241b;
+    --amber:#ffb100;
+    --amber-deep:#c98600;
+    --line: rgba(18,36,27,0.16);
+    --red: #c0392b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 50% 0%, var(--turf-light) 0%, var(--turf) 45%, var(--turf-deep) 100%);
+    color:var(--chalk);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:0 0 60px 0;
+  }
+  .pitch-lines{
+    position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.06;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 78px, #fff 78px, #fff 79px),
+      repeating-linear-gradient(90deg, transparent, transparent 78px, #fff 78px, #fff 79px);
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:28px 18px 0;position:relative;z-index:1;}
+
+  header.hero{text-align:center;margin-bottom:22px;}
+  .badge-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:54px;height:54px;border-radius:50%;
+    background:var(--amber);color:var(--turf-deep);
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;
+    border:3px solid var(--chalk); margin-bottom:10px;
+  }
+  .logo-crest{ display:flex; justify-content:center; margin-bottom:8px; filter:drop-shadow(0 6px 14px rgba(0,0,0,0.3)); }
+  h1.title{
+    font-family:'Oswald',sans-serif;font-weight:700;
+    font-size:clamp(32px,7vw,46px);
+    letter-spacing:1px; margin:0; text-transform:uppercase;
+    color:var(--chalk);
+  }
+  .subtitle{
+    font-family:'Space Mono',monospace; font-size:13px; letter-spacing:2px;
+    text-transform:uppercase; color:var(--amber); margin-top:6px;
+  }
+
+  nav.tabs{
+    display:flex; gap:6px; background:rgba(0,0,0,0.18);
+    padding:6px; border-radius:14px; margin-bottom:22px;
+    overflow-x:auto;
+  }
+  nav.tabs button{
+    flex:1; white-space:nowrap; padding:11px 10px; border:none; border-radius:10px;
+    background:transparent; color:var(--chalk); opacity:0.6;
+    font-family:'Oswald',sans-serif; font-weight:500; font-size:14px;
+    letter-spacing:0.5px; text-transform:uppercase; cursor:pointer;
+    transition:all .15s ease;
+  }
+  nav.tabs button.active{ background:var(--amber); color:var(--turf-deep); opacity:1; font-weight:700; }
+  nav.tabs button:hover:not(.active){opacity:0.9;}
+
+  .card{
+    background:var(--paper); color:var(--ink); border-radius:16px;
+    padding:20px; margin-bottom:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.25);
+  }
+
+  /* Ticket stub match card */
+  .ticket{
+    background:var(--paper); color:var(--ink); border-radius:14px;
+    margin-bottom:14px; box-shadow:0 8px 22px rgba(0,0,0,0.22);
+    display:flex; overflow:hidden; position:relative;
+  }
+  .ticket .stub{
+    width:64px; flex-shrink:0; background:var(--turf-deep); color:var(--amber);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:'Oswald',sans-serif; font-weight:600; font-size:11px;
+    letter-spacing:1px; text-transform:uppercase; padding:8px 4px; text-align:center;
+    position:relative;
+  }
+  .ticket .stub::after{
+    content:''; position:absolute; right:-1px; top:0; bottom:0; width:0;
+    border-right:2px dashed rgba(250,247,239,0.4);
+  }
+  .ticket .stub .rw{ font-family:'Space Mono',monospace; font-size:16px; color:var(--chalk); margin-top:4px;}
+  .ticket .body{ flex:1; padding:14px 16px; }
+  .match-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .team{ display:flex; align-items:center; gap:8px; font-family:'Oswald',sans-serif; font-size:17px; font-weight:600; flex:1;}
+  .team .flag{ font-size:20px; }
+  .vs{ font-family:'Space Mono',monospace; font-size:11px; opacity:0.45; padding:0 6px;}
+  .meta-line{ font-family:'Space Mono',monospace; font-size:11px; opacity:0.55; margin-top:6px; }
+
+  .score-input-row{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:12px; }
+  .score-input-row input{
+    width:52px; text-align:center; font-family:'Space Mono',monospace; font-size:20px;
+    padding:8px 0; border:2px solid var(--line); border-radius:8px; background:#fff; color:var(--ink);
+  }
+  .score-input-row input:focus{ outline:none; border-color:var(--turf); }
+  .score-dash{ font-family:'Space Mono',monospace; font-size:18px; opacity:0.4; }
+
+  .locked-tag, .status-tag{
+    font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase;
+    padding:3px 8px; border-radius:20px; display:inline-block;
+  }
+  .locked-tag{ background:rgba(192,57,43,0.12); color:var(--red); }
+  .status-tag.live{ background:rgba(255,177,0,0.18); color:var(--amber-deep); }
+  .status-tag.done{ background:rgba(30,77,59,0.12); color:var(--turf); }
+
+  .result-line{
+    display:flex; align-items:center; justify-content:center; gap:14px; margin-top:10px;
+    font-family:'Space Mono',monospace;
+  }
+  .final-score{ font-size:26px; font-weight:700; color:var(--turf-deep); }
+  .points-pill{
+    font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; padding:4px 10px;
+    border-radius:20px; background:var(--turf); color:var(--chalk);
+  }
+  .points-pill.zero{ background:var(--line); color:var(--ink); opacity:0.6; }
+
+  .your-pick-note{ text-align:center; font-size:12px; opacity:0.65; margin-top:6px; font-family:'Inter',sans-serif;}
+
+  button.primary{
+    background:var(--turf); color:var(--chalk); border:none; border-radius:10px;
+    padding:12px 18px; font-family:'Oswald',sans-serif; font-weight:600; font-size:14px;
+    letter-spacing:0.5px; text-transform:uppercase; cursor:pointer; width:100%;
+  }
+  button.primary:hover{ background:var(--turf-light); }
+  button.amber{ background:var(--amber); color:var(--turf-deep); }
+  button.amber:hover{ background:var(--amber-deep); color:#fff; }
+  button.ghost{
+    background:transparent; border:2px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:10px 14px; font-family:'Oswald',sans-serif; font-weight:600;
+    cursor:pointer; text-transform:uppercase; font-size:13px;
+  }
+
+  input[type=text]{
+    width:100%; padding:12px 14px; border-radius:10px; border:2px solid var(--line);
+    font-family:'Inter',sans-serif; font-size:15px; background:#fff; color:var(--ink);
+  }
+  select{
+    width:100%; padding:12px 14px; border-radius:10px; border:2px solid var(--line);
+    font-family:'Inter',sans-serif; font-size:15px; background:#fff; color:var(--ink);
+  }
+  label.field-label{
+    display:block; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:1px;
+    text-transform:uppercase; opacity:0.6; margin-bottom:6px; margin-top:16px;
+  }
+
+  /* Scoreboard leaderboard */
+  .lb-row{
+    display:flex; align-items:center; gap:14px; padding:12px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .lb-row:last-child{ border-bottom:none; }
+  .rank-shirt{
+    width:38px; height:38px; border-radius:8px; background:var(--turf);
+    color:var(--chalk); display:flex; align-items:center; justify-content:center;
+    font-family:'Oswald',sans-serif; font-weight:700; font-size:16px; flex-shrink:0;
+  }
+  .rank-shirt.gold{ background:var(--amber); color:var(--turf-deep); }
+  .lb-name{ flex:1; font-family:'Oswald',sans-serif; font-weight:600; font-size:16px; }
+  .lb-sub{ font-family:'Space Mono',monospace; font-size:11px; opacity:0.55; margin-top:2px; }
+  .flip-score{
+    font-family:'Space Mono',monospace; font-weight:700; font-size:22px;
+    background:var(--turf-deep); color:var(--amber); padding:6px 12px; border-radius:8px;
+    min-width:52px; text-align:center;
+  }
+
+  .empty-state{ text-align:center; padding:30px 10px; opacity:0.7; font-size:14px; }
+  .round-heading{
+    font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:1.5px;
+    font-size:13px; color:var(--amber); margin:22px 0 10px 4px; font-weight:600;
+  }
+  .join-screen{ text-align:center; padding-top:40px; }
+  .join-screen p{ opacity:0.85; line-height:1.5; max-width:420px; margin:10px auto 20px; }
+
+  .admin-match-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; align-items:center;}
+  .admin-match-row input{ padding:8px 10px; font-size:13px; }
+  .admin-teams-row{ display:flex; gap:8px; align-items:center; margin-bottom:6px; font-size:13px; font-family:'Space Mono',monospace;}
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); }
+  .switch{ position:relative; width:44px; height:24px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider{ position:absolute; cursor:pointer; inset:0; background:var(--line); border-radius:24px; transition:.2s; }
+  .slider::before{ content:''; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+  input:checked + .slider{ background:var(--turf); }
+  input:checked + .slider::before{ transform:translateX(20px); }
+
+  .footer-note{ text-align:center; font-size:11px; opacity:0.4; margin-top:26px; font-family:'Space Mono',monospace;}
+  ::-webkit-scrollbar{height:6px;}
+</style>
+</head>
+<body>
+<div class="pitch-lines"></div>
+<div class="wrap" id="app"></div>
+
+<script>
+const ROUND_META = {
+  R16:{label:'Round of 16', weight:1},
+  QF:{label:'Quarter-final', weight:2},
+  SF:{label:'Semi-final', weight:3},
+  TP:{label:'3rd Place Playoff', weight:1},
+  F:{label:'Final', weight:4}
+};
+
+const DEFAULT_MATCHES = [
+  {id:'r16-1', round:'R16', teamA:'Morocco', flagA:'🇲🇦', teamB:'Canada', flagB:'🇨🇦', kickoff:'Sat Jul 4 · Houston', status:'completed', scoreA:3, scoreB:0},
+  {id:'r16-2', round:'R16', teamA:'France', flagA:'🇫🇷', teamB:'Paraguay', flagB:'🇵🇾', kickoff:'Sat Jul 4 · Philadelphia', status:'completed', scoreA:1, scoreB:0},
+  {id:'r16-3', round:'R16', teamA:'Norway', flagA:'🇳🇴', teamB:'Brazil', flagB:'🇧🇷', kickoff:'Sun Jul 5 · New York/NJ', status:'completed', scoreA:2, scoreB:1},
+  {id:'r16-4', round:'R16', teamA:'England', flagA:'🏴', teamB:'Mexico', flagB:'🇲🇽', kickoff:'Sun Jul 5 · Mexico City', status:'completed', scoreA:3, scoreB:2},
+  {id:'r16-5', round:'R16', teamA:'Portugal', flagA:'🇵🇹', teamB:'Spain', flagB:'🇪🇸', kickoff:'Mon Jul 6 · Dallas', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-6', round:'R16', teamA:'USA', flagA:'🇺🇸', teamB:'Belgium', flagB:'🇧🇪', kickoff:'Mon Jul 6 · Seattle', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-7', round:'R16', teamA:'Argentina', flagA:'🇦🇷', teamB:'Egypt', flagB:'🇪🇬', kickoff:'Tue Jul 7 · Atlanta', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'r16-8', round:'R16', teamA:'Switzerland', flagA:'🇨🇭', teamB:'Colombia', flagB:'🇨🇴', kickoff:'Tue Jul 7 · Kansas City', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-1', round:'QF', teamA:'England', flagA:'🏴', teamB:'Norway', flagB:'🇳🇴', kickoff:'Sat Jul 11 · Miami', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-2', round:'QF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-3', round:'QF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'qf-4', round:'QF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'sf-1', round:'SF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'sf-2', round:'SF', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'TBD', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'tp-1', round:'TP', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'Fri Jul 18 · Miami', status:'upcoming', scoreA:null, scoreB:null},
+  {id:'f-1', round:'F', teamA:'TBD', flagA:'🏳️', teamB:'TBD', flagB:'🏳️', kickoff:'Sun Jul 19 · New York/NJ', status:'upcoming', scoreA:null, scoreB:null},
+];
+
+const CHAMPION_OPTIONS = ['Morocco','France','Norway','England','Portugal','Spain','USA','Belgium','Argentina','Egypt','Switzerland','Colombia'];
+
+let state = {
+  name: null,
+  poolCode: null,
+  tab: 'leaderboard',
+  matches: null,
+  players: [],
+  predictions: {},
+  config: { tournamentLocked:false, actualChampion:'', actualGoldenBoot:'' },
+  adminMode: false,
+  loading: true,
+  joinError: '',
+  confirmSwitch: false
+};
+
+const FIREBASE_URL = 'https://matchday-pool-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+  let code = '';
+  for(let i=0;i<8;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+function slugify(str){
+  return String(str).trim().replace(/[.#$\[\]]/g, '').replace(/\s+/g, '_') || 'player';
+}
+
+// Personal, low-stakes identity only — safe to lose if the app is ever republished.
+async function safeGet(key, shared){
+  try{ const r = await window.storage.get(key, shared); return r ? JSON.parse(r.value) : null; }
+  catch(e){ return null; }
+}
+async function safeSet(key, value, shared){
+  try{ await window.storage.set(key, JSON.stringify(value), shared); }
+  catch(e){ console.error('storage set failed', key, e); }
+}
+
+// Real game data — lives in Firebase, independent of Claude publishing/versioning.
+async function fbGet(path){
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ console.error('firebase get failed', path, e); return null; }
+}
+async function fbSet(path, value){
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(value)
+    });
+    return res.ok;
+  }catch(e){ console.error('firebase set failed', path, e); return false; }
+}
+
+function poolPath(suffix){ return `pools/${state.poolCode}/${suffix}`; }
+function predPath(name){ return `pools/${state.poolCode}/predictions/${slugify(name)}`; }
+
+async function init(){
+  const myName = await safeGet('my_name', false);
+  const myPoolCode = await safeGet('my_pool_code', false);
+  state.name = myName;
+  state.poolCode = myPoolCode;
+
+  if(state.name && state.poolCode){
+    await loadPoolData();
+  }
+
+  state.loading = false;
+  render();
+}
+
+async function loadPoolData(){
+  let matches = await fbGet(poolPath('matches'));
+  if(!matches){ matches = JSON.parse(JSON.stringify(DEFAULT_MATCHES)); await fbSet(poolPath('matches'), matches); }
+  state.matches = matches;
+
+  let players = await fbGet(poolPath('players'));
+  state.players = players || [];
+
+  let config = await fbGet(poolPath('config'));
+  state.config = config || { tournamentLocked:false, actualChampion:'', actualGoldenBoot:'' };
+
+  let allPreds = await fbGet(poolPath('predictions'));
+  state.predictions = {};
+  for(const p of state.players){
+    const rec = allPreds ? allPreds[slugify(p)] : null;
+    state.predictions[p] = rec || { matches:{}, champion:'', goldenBoot:'' };
+  }
+  if(state.name && !state.predictions[state.name]){
+    state.predictions[state.name] = { matches:{}, champion:'', goldenBoot:'' };
+  }
+}
+
+async function createPool(name){
+  name = name.trim();
+  if(!name){ state.joinError = 'Enter your name first.'; render(); return; }
+  let code = genCode();
+  // extremely unlikely, but avoid clobbering an existing pool on a collision
+  for(let i=0;i<3;i++){
+    const clash = await fbGet(`pools/${code}/matches`);
+    if(!clash) break;
+    code = genCode();
+  }
+  await safeSet('my_name', name, false);
+  await safeSet('my_pool_code', code, false);
+  state.name = name;
+  state.poolCode = code;
+  state.joinError = '';
+  await loadPoolData();
+  await addSelfToPool(name);
+  render();
+}
+
+async function joinExistingPool(name, code){
+  name = name.trim();
+  code = code.trim().toUpperCase();
+  if(!name){ state.joinError = 'Enter your name first.'; render(); return; }
+  if(!code){ state.joinError = 'Enter the pool code your friend shared.'; render(); return; }
+  state.poolCode = code;
+  const matchesExisting = await fbGet(poolPath('matches'));
+  if(!matchesExisting){
+    state.joinError = `No pool found with code ${code}. Double-check it with whoever created it.`;
+    state.poolCode = null;
+    render();
+    return;
+  }
+  await safeSet('my_name', name, false);
+  await safeSet('my_pool_code', code, false);
+  state.name = name;
+  state.joinError = '';
+  await loadPoolData();
+  await addSelfToPool(name);
+  render();
+}
+
+async function addSelfToPool(name){
+  if(!state.players.includes(name)){
+    state.players.push(name);
+    await fbSet(poolPath('players'), state.players);
+  }
+  if(!state.predictions[name]){
+    state.predictions[name] = { matches:{}, champion:'', goldenBoot:'' };
+    await fbSet(predPath(name), state.predictions[name]);
+  }
+}
+
+async function leavePool(){
+  await safeSet('my_name', '', false);
+  await safeSet('my_pool_code', '', false);
+  state.name = null;
+  state.poolCode = null;
+  state.matches = null;
+  state.players = [];
+  state.predictions = {};
+  state.tab = 'leaderboard';
+  render();
+}
+
+async function savePrediction(matchId, scoreA, scoreB){
+  const me = state.predictions[state.name];
+  me.matches[matchId] = { scoreA, scoreB };
+  await fbSet(predPath(state.name), me);
+  render();
+}
+
+async function saveTournamentPicks(champion, goldenBoot){
+  const me = state.predictions[state.name];
+  me.champion = champion;
+  me.goldenBoot = goldenBoot;
+  await fbSet(predPath(state.name), me);
+  render();
+}
+
+async function adminSaveResult(matchId, scoreA, scoreB, status){
+  const m = state.matches.find(x=>x.id===matchId);
+  m.scoreA = scoreA===''? null : parseInt(scoreA);
+  m.scoreB = scoreB===''? null : parseInt(scoreB);
+  m.status = status;
+  await fbSet(poolPath('matches'), state.matches);
+  render();
+}
+
+async function adminSaveTeams(matchId, teamA, teamB, kickoff){
+  const m = state.matches.find(x=>x.id===matchId);
+  m.teamA = teamA || 'TBD';
+  m.teamB = teamB || 'TBD';
+  m.kickoff = kickoff || 'TBD';
+  await fbSet(poolPath('matches'), state.matches);
+  render();
+}
+
+async function adminSaveConfig(){
+  await fbSet(poolPath('config'), state.config);
+  render();
+}
+
+function computeScore(playerName){
+  const pred = state.predictions[playerName];
+  if(!pred) return {points:0, correctWinners:0, exactScores:0, totalPlayed:0};
+  let points = 0, correctWinners = 0, exactScores = 0, totalPlayed=0;
+  for(const m of state.matches){
+    if(m.status !== 'completed') continue;
+    totalPlayed++;
+    const p = pred.matches[m.id];
+    if(!p || p.scoreA===undefined || p.scoreA===null || p.scoreB===null || p.scoreB===undefined) continue;
+    const weight = ROUND_META[m.round].weight;
+    const actualWinner = m.scoreA===m.scoreB ? 'draw' : (m.scoreA>m.scoreB?'A':'B');
+    const predWinner = p.scoreA===p.scoreB ? 'draw' : (p.scoreA>p.scoreB?'A':'B');
+    if(predWinner===actualWinner && actualWinner!=='draw'){
+      points += 1*weight;
+      correctWinners++;
+    }
+    if(p.scoreA===m.scoreA && p.scoreB===m.scoreB){
+      points += 2*weight;
+      exactScores++;
+    }
+  }
+  if(state.config.actualChampion && pred.champion && pred.champion===state.config.actualChampion){
+    points += 10;
+  }
+  if(state.config.actualGoldenBoot && pred.goldenBoot && pred.goldenBoot.trim().toLowerCase()===state.config.actualGoldenBoot.trim().toLowerCase()){
+    points += 5;
+  }
+  return {points, correctWinners, exactScores, totalPlayed};
+}
+
+function pointsForMatch(playerName, m){
+  const pred = state.predictions[playerName];
+  if(!pred) return 0;
+  const p = pred.matches[m.id];
+  if(!p || p.scoreA===undefined || p.scoreA===null || p.scoreB===null || p.scoreB===undefined) return 0;
+  const weight = ROUND_META[m.round].weight;
+  let pts = 0;
+  const actualWinner = m.scoreA===m.scoreB ? 'draw' : (m.scoreA>m.scoreB?'A':'B');
+  const predWinner = p.scoreA===p.scoreB ? 'draw' : (p.scoreA>p.scoreB?'A':'B');
+  if(predWinner===actualWinner && actualWinner!=='draw') pts += 1*weight;
+  if(p.scoreA===m.scoreA && p.scoreB===m.scoreB) pts += 2*weight;
+  return pts;
+}
+
+function el(html){
+  const div = document.createElement('div');
+  div.innerHTML = html.trim();
+  return div.firstElementChild;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  const header = el(`
+    <header class="hero">
+      <div class="logo-crest">
+        <svg viewBox="0 0 100 116" width="76" height="88" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 4 L92 16 V56 C92 82 74 100 50 112 C26 100 8 82 8 56 V16 Z"
+                fill="#ffb100" stroke="#12241b" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M50 4 L92 16 V56 C92 82 74 100 50 112"
+                fill="none" stroke="#c98600" stroke-width="1.5" opacity="0.5"/>
+          <polygon points="30,26 32,31 37,31 33,34 34,39 30,36 26,39 27,34 23,31 28,31" fill="#12241b"/>
+          <polygon points="50,20 52,25 57,25 53,28 54,33 50,30 46,33 47,28 43,25 48,25" fill="#12241b"/>
+          <polygon points="70,26 72,31 77,31 73,34 74,39 70,36 66,39 67,34 63,31 68,31" fill="#12241b"/>
+          <g transform="translate(50,58)">
+            <circle r="19" fill="#faf7ef" stroke="#12241b" stroke-width="3"/>
+            <polygon points="0,-9 8,-3 5,7 -5,7 -8,-3" fill="#12241b"/>
+            <path d="M0,-9 L0,-19 M8,-3 L17,-6 M5,7 L10,16 M-5,7 L-10,16 M-8,-3 L-17,-6"
+                  stroke="#12241b" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <rect x="24" y="90" width="52" height="16" rx="8" fill="#12241b"/>
+          <text x="50" y="102" text-anchor="middle" font-family="Oswald, sans-serif" font-weight="700"
+                font-size="14" fill="#ffb100" letter-spacing="1">2026</text>
+        </svg>
+      </div>
+      <h1 class="title">Matchday Pool</h1>
+      <div class="subtitle">World Cup 2026 · Knockout Stage</div>
+    </header>
+  `);
+  app.appendChild(header);
+
+  if(state.loading){
+    app.appendChild(el(`<div class="empty-state">Loading pool…</div>`));
+    return;
+  }
+
+  if(!state.name || !state.poolCode){
+    renderJoinScreen(app);
+    return;
+  }
+
+  const poolBar = el(`
+    <div class="card" style="padding:12px 16px; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div class="lb-sub" style="margin-top:0;">Pool Code</div>
+          <div style="font-family:'Space Mono',monospace; font-size:18px; font-weight:700; letter-spacing:1.5px; word-break:break-all;">${state.poolCode}</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="ghost" id="copyCodeBtn">Copy</button>
+          <button class="ghost" id="leaveBtn">Switch</button>
+        </div>
+      </div>
+    </div>
+  `);
+  poolBar.querySelector('#copyCodeBtn').onclick = ()=>{
+    navigator.clipboard?.writeText(state.poolCode);
+    const b = poolBar.querySelector('#copyCodeBtn');
+    b.textContent = 'Copied!';
+    setTimeout(()=>{ b.textContent = 'Copy'; }, 1500);
+  };
+  poolBar.querySelector('#leaveBtn').onclick = ()=>{
+    state.confirmSwitch = true;
+    render();
+  };
+  app.appendChild(poolBar);
+
+  if(state.confirmSwitch){
+    const confirmCard = el(`
+      <div class="card" style="border:2px solid var(--amber); margin-top:-8px;">
+        <div style="font-family:'Oswald',sans-serif; font-weight:600; margin-bottom:6px;">Switch to a different pool?</div>
+        <div style="font-size:13px; opacity:0.75; margin-bottom:14px;">You can rejoin this pool anytime with the code <strong>${state.poolCode}</strong>. Your predictions here are safe either way.</div>
+        <div style="display:flex; gap:10px;">
+          <button class="primary" id="confirmSwitchYes" style="background:var(--red);">Yes, Switch</button>
+          <button class="ghost" id="confirmSwitchNo">Cancel</button>
+        </div>
+      </div>
+    `);
+    confirmCard.querySelector('#confirmSwitchYes').onclick = ()=>{ state.confirmSwitch = false; leavePool(); };
+    confirmCard.querySelector('#confirmSwitchNo').onclick = ()=>{ state.confirmSwitch = false; render(); };
+    app.appendChild(confirmCard);
+  }
+
+  const tabs = el(`
+    <nav class="tabs">
+      <button data-tab="leaderboard">Leaderboard</button>
+      <button data-tab="predictions">Predictions</button>
+      <button data-tab="picks">Tournament Picks</button>
+      <button data-tab="admin">Commissioner</button>
+    </nav>
+  `);
+  [...tabs.children].forEach(btn=>{
+    if(btn.dataset.tab===state.tab) btn.classList.add('active');
+    btn.onclick = ()=>{ state.tab = btn.dataset.tab; render(); };
+  });
+  app.appendChild(tabs);
+
+  if(state.tab==='leaderboard') renderLeaderboard(app);
+  else if(state.tab==='predictions') renderPredictions(app);
+  else if(state.tab==='picks') renderPicks(app);
+  else if(state.tab==='admin') renderAdmin(app);
+
+  app.appendChild(el(`<div class="footer-note">Playing as ${state.name} in pool ${state.poolCode} · predictions lock once a match kicks off</div>`));
+}
+
+function renderJoinScreen(app){
+  const box = el(`
+    <div class="card join-screen">
+      <div class="badge-num" style="margin-bottom:14px;">🏆</div>
+      <h2 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin:0;">Join or Start a Pool</h2>
+      <p>Each pool is its own private group — an 8-character code is all it takes to keep your friend group's predictions and leaderboard separate from everyone else's.</p>
+      <label class="field-label" style="text-align:left; max-width:280px; margin-left:auto; margin-right:auto;">Your name</label>
+      <input type="text" id="nameInput" placeholder="Your name" value="${state.name || ''}" style="max-width:280px; margin:0 auto 4px; display:block;">
+    </div>
+  `);
+  app.appendChild(box);
+
+  const joinCard = el(`
+    <div class="card">
+      <h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Have a code?</h3>
+      <p style="font-size:13px; opacity:0.75; margin-top:-6px;">Enter the code a friend shared to join their pool.</p>
+      <input type="text" id="codeInput" placeholder="e.g. 7K2QF9XM" maxlength="8" autocapitalize="characters" style="max-width:280px; display:block; text-transform:uppercase; letter-spacing:2px; font-family:'Space Mono',monospace;">
+      <button class="primary" id="joinCodeBtn" style="max-width:280px; margin-top:12px;">Join Pool</button>
+    </div>
+  `);
+  app.appendChild(joinCard);
+
+  const createCard = el(`
+    <div class="card">
+      <h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Starting a new group?</h3>
+      <p style="font-size:13px; opacity:0.75; margin-top:-6px;">Create a pool and get a code to send your friends.</p>
+      <button class="amber" id="createBtn" style="border:none; max-width:280px;">Create New Pool</button>
+    </div>
+  `);
+  app.appendChild(createCard);
+
+  if(state.joinError){
+    app.appendChild(el(`<div class="card" style="border:2px solid var(--red); color:var(--red); font-size:13px; text-align:center;">${state.joinError}</div>`));
+  }
+
+  const nameInput = box.querySelector('#nameInput');
+  const codeInput = joinCard.querySelector('#codeInput');
+  codeInput.addEventListener('input', ()=>{
+    codeInput.value = codeInput.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8);
+  });
+  joinCard.querySelector('#joinCodeBtn').onclick = ()=> joinExistingPool(nameInput.value, codeInput.value);
+  createCard.querySelector('#createBtn').onclick = ()=> createPool(nameInput.value);
+  codeInput.addEventListener('keydown', e=>{ if(e.key==='Enter') joinExistingPool(nameInput.value, codeInput.value); });
+}
+
+function renderLeaderboard(app){
+  const scored = state.players.map(p=>({name:p, ...computeScore(p)}));
+  scored.sort((a,b)=> b.points - a.points);
+
+  const card = el(`<div class="card"></div>`);
+  if(scored.length===0){
+    card.appendChild(el(`<div class="empty-state">No one's joined yet — share this link with your friends.</div>`));
+  } else {
+    scored.forEach((s, i)=>{
+      const row = el(`
+        <div class="lb-row">
+          <div class="rank-shirt ${i===0?'gold':''}">${i+1}</div>
+          <div style="flex:1;">
+            <div class="lb-name">${s.name}${s.name===state.name?' (you)':''}</div>
+            <div class="lb-sub">${s.correctWinners} winners · ${s.exactScores} exact · ${s.totalPlayed} played</div>
+          </div>
+          <div class="flip-score">${s.points}</div>
+        </div>
+      `);
+      card.appendChild(row);
+    });
+  }
+  app.appendChild(card);
+}
+
+function renderPredictions(app){
+  const grouped = {};
+  state.matches.forEach(m=>{
+    if(!grouped[m.round]) grouped[m.round] = [];
+    grouped[m.round].push(m);
+  });
+
+  Object.keys(ROUND_META).forEach(roundKey=>{
+    const list = grouped[roundKey];
+    if(!list) return;
+    app.appendChild(el(`<div class="round-heading">${ROUND_META[roundKey].label} · ${ROUND_META[roundKey].weight}× points</div>`));
+    list.forEach(m=>{
+      app.appendChild(renderMatchTicket(m));
+    });
+  });
+}
+
+function renderMatchTicket(m){
+  const pred = state.predictions[state.name].matches[m.id] || {};
+  const isTBD = m.teamA==='TBD' || m.teamB==='TBD';
+  const isCompleted = m.status==='completed';
+  const isLive = m.status==='live';
+
+  const ticket = el(`
+    <div class="ticket">
+      <div class="stub">${m.round}<div class="rw">${ROUND_META[m.round].weight}×</div></div>
+      <div class="body"></div>
+    </div>
+  `);
+  const body = ticket.querySelector('.body');
+
+  const statusTag = isCompleted ? `<span class="status-tag done">Final</span>` : isLive ? `<span class="status-tag live">Live</span>` : (isTBD ? '' : `<span class="locked-tag">Predict now</span>`);
+
+  body.appendChild(el(`
+    <div class="match-row">
+      <div class="team"><span class="flag">${m.flagA}</span>${m.teamA}</div>
+      <div class="vs">VS</div>
+      <div class="team" style="justify-content:flex-end; text-align:right;">${m.teamB}<span class="flag">${m.flagB}</span></div>
+    </div>
+  `));
+  body.appendChild(el(`<div class="meta-line">${m.kickoff} ${statusTag}</div>`));
+
+  if(isTBD){
+    body.appendChild(el(`<div class="your-pick-note">Matchup not set yet</div>`));
+    return ticket;
+  }
+
+  if(isCompleted){
+    const pts = pointsForMatch(state.name, m);
+    body.appendChild(el(`
+      <div class="result-line">
+        <div class="final-score">${m.scoreA} – ${m.scoreB}</div>
+        <div class="points-pill ${pts===0?'zero':''}">${pts>0? '+'+pts+' pts' : (pred.scoreA!==undefined?'0 pts':'no pick')}</div>
+      </div>
+    `));
+    if(pred.scoreA!==undefined && pred.scoreA!==null){
+      body.appendChild(el(`<div class="your-pick-note">Your pick was ${pred.scoreA} – ${pred.scoreB}</div>`));
+    }
+  } else {
+    const row = el(`
+      <div class="score-input-row">
+        <input type="number" min="0" max="20" id="sa-${m.id}" value="${pred.scoreA ?? ''}" placeholder="0">
+        <div class="score-dash">–</div>
+        <input type="number" min="0" max="20" id="sb-${m.id}" value="${pred.scoreB ?? ''}" placeholder="0">
+      </div>
+    `);
+    body.appendChild(row);
+    const btn = el(`<button class="primary" style="margin-top:12px;">Save Prediction</button>`);
+    btn.onclick = ()=>{
+      const sa = row.querySelector(`#sa-${m.id}`).value;
+      const sb = row.querySelector(`#sb-${m.id}`).value;
+      if(sa==='' || sb==='') return;
+      savePrediction(m.id, parseInt(sa), parseInt(sb));
+    };
+    body.appendChild(btn);
+  }
+
+  return ticket;
+}
+
+function renderPicks(app){
+  const me = state.predictions[state.name];
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(el(`<h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Tournament-Wide Picks</h3>`));
+  card.appendChild(el(`<p style="font-size:13px; opacity:0.75;">Worth big points at the end — 10 for the champion, 5 for the Golden Boot winner. ${state.config.tournamentLocked? 'Locked by the commissioner.' : 'Change these anytime until the commissioner locks them.'}</p>`));
+
+  card.appendChild(el(`<label class="field-label">World Cup Champion</label>`));
+  const select = el(`<select id="championSelect" ${state.config.tournamentLocked?'disabled':''}></select>`);
+  select.appendChild(el(`<option value="">Choose a team…</option>`));
+  CHAMPION_OPTIONS.forEach(t=>{
+    const opt = el(`<option value="${t}">${t}</option>`);
+    if(me.champion===t) opt.selected = true;
+    select.appendChild(opt);
+  });
+  card.appendChild(select);
+
+  card.appendChild(el(`<label class="field-label">Golden Boot Winner</label>`));
+  const gbInput = el(`<input type="text" id="goldenBootInput" placeholder="Player name" value="${me.goldenBoot||''}" ${state.config.tournamentLocked?'disabled':''}>`);
+  card.appendChild(gbInput);
+
+  const saveBtn = el(`<button class="primary" style="margin-top:18px;" ${state.config.tournamentLocked?'disabled':''}>Save Picks</button>`);
+  saveBtn.onclick = ()=> saveTournamentPicks(select.value, gbInput.value);
+  card.appendChild(saveBtn);
+
+  app.appendChild(card);
+
+  if(state.config.actualChampion || state.config.actualGoldenBoot){
+    const answerCard = el(`<div class="card"></div>`);
+    answerCard.appendChild(el(`<h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Confirmed Results</h3>`));
+    if(state.config.actualChampion) answerCard.appendChild(el(`<div class="meta-line">🏆 Champion: ${state.config.actualChampion}</div>`));
+    if(state.config.actualGoldenBoot) answerCard.appendChild(el(`<div class="meta-line" style="margin-top:6px;">⚽ Golden Boot: ${state.config.actualGoldenBoot}</div>`));
+    app.appendChild(answerCard);
+  }
+}
+
+function renderAdmin(app){
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(el(`<h3 style="font-family:'Oswald',sans-serif; text-transform:uppercase; margin-top:0;">Commissioner Mode</h3>`));
+  card.appendChild(el(`<p style="font-size:13px; opacity:0.75;">No password — this is honor-system for the group. Anyone can enter results as matches finish, fill in future-round matchups, and lock tournament picks.</p>`));
+  app.appendChild(card);
+
+  const lockCard = el(`<div class="card"></div>`);
+  const toggleRow = el(`
+    <div class="toggle-row">
+      <div><strong style="font-family:'Oswald',sans-serif;">Lock tournament-wide picks</strong><div class="lb-sub">Prevents champion / Golden Boot changes once knockouts heat up</div></div>
+      <label class="switch"><input type="checkbox" id="lockToggle" ${state.config.tournamentLocked?'checked':''}><span class="slider"></span></label>
+    </div>
+  `);
+  toggleRow.querySelector('#lockToggle').onchange = (e)=>{ state.config.tournamentLocked = e.target.checked; adminSaveConfig(); };
+  lockCard.appendChild(toggleRow);
+
+  lockCard.appendChild(el(`<label class="field-label">Confirmed Champion (once known)</label>`));
+  const champSel = el(`<select id="actualChamp"></select>`);
+  champSel.appendChild(el(`<option value="">Not decided yet</option>`));
+  CHAMPION_OPTIONS.forEach(t=>{
+    const opt = el(`<option value="${t}">${t}</option>`);
+    if(state.config.actualChampion===t) opt.selected = true;
+    champSel.appendChild(opt);
+  });
+  champSel.onchange = ()=>{ state.config.actualChampion = champSel.value; adminSaveConfig(); };
+  lockCard.appendChild(champSel);
+
+  lockCard.appendChild(el(`<label class="field-label">Confirmed Golden Boot Winner</label>`));
+  const gbInput = el(`<input type="text" id="actualGB" placeholder="Player name" value="${state.config.actualGoldenBoot||''}">`);
+  const gbBtn = el(`<button class="ghost" style="margin-top:8px;">Save</button>`);
+  gbBtn.onclick = ()=>{ state.config.actualGoldenBoot = gbInput.value; adminSaveConfig(); };
+  lockCard.appendChild(gbInput);
+  lockCard.appendChild(gbBtn);
+  app.appendChild(lockCard);
+
+  Object.keys(ROUND_META).forEach(roundKey=>{
+    const matches = state.matches.filter(m=>m.round===roundKey);
+    if(matches.length===0) return;
+    app.appendChild(el(`<div class="round-heading">${ROUND_META[roundKey].label}</div>`));
+    matches.forEach(m=>{
+      const mc = el(`<div class="card" style="padding:16px;"></div>`);
+      mc.appendChild(el(`<div class="lb-sub" style="margin-bottom:8px;">${m.id}</div>`));
+
+      const teamsRow = el(`
+        <div class="admin-match-row">
+          <input type="text" id="ta-${m.id}" value="${m.teamA==='TBD'?'':m.teamA}" placeholder="Team A">
+          <input type="text" id="tb-${m.id}" value="${m.teamB==='TBD'?'':m.teamB}" placeholder="Team B">
+        </div>
+      `);
+      mc.appendChild(teamsRow);
+      const kickoffRow = el(`<input type="text" id="ko-${m.id}" value="${m.kickoff==='TBD'?'':m.kickoff}" placeholder="Kickoff / venue" style="margin-bottom:10px;">`);
+      mc.appendChild(kickoffRow);
+      const teamsBtn = el(`<button class="ghost" style="margin-bottom:14px;">Update Matchup</button>`);
+      teamsBtn.onclick = ()=>{
+        adminSaveTeams(m.id,
+          teamsRow.querySelector(`#ta-${m.id}`).value,
+          teamsRow.querySelector(`#tb-${m.id}`).value,
+          kickoffRow.value
+        );
+      };
+      mc.appendChild(teamsBtn);
+
+      const resultRow = el(`
+        <div class="admin-match-row">
+          <input type="number" id="ra-${m.id}" value="${m.scoreA ?? ''}" placeholder="Score A">
+          <input type="number" id="rb-${m.id}" value="${m.scoreB ?? ''}" placeholder="Score B">
+        </div>
+      `);
+      mc.appendChild(resultRow);
+      const resultBtn = el(`<button class="amber" style="border:none;">Mark Final</button>`);
+      resultBtn.onclick = ()=>{
+        adminSaveResult(m.id,
+          resultRow.querySelector(`#ra-${m.id}`).value,
+          resultRow.querySelector(`#rb-${m.id}`).value,
+          'completed'
+        );
+      };
+      mc.appendChild(resultBtn);
+      app.appendChild(mc);
+    });
+  });
+}
+
+init();
+</script>
+</body>
+</html>
